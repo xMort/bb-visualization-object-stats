@@ -32,46 +32,64 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 public class Application {
 
     private static void processProject(final GoodData goodData, final String projectId, final Writer writer) throws IOException {
-        final Project project = goodData.getProjectService().getProjectById(projectId);
-        final HashMap<String, Boolean> displayFormCache = new HashMap<>();
+        try {
+            final Project project = goodData.getProjectService().getProjectById(projectId);
+            final HashMap<String, Boolean> displayFormCache = new HashMap<>();
 
-        final Collection<Entry> entries = goodData.getMetadataService().find(project, VisualizationObject.class);
-        int index = 0;
-        for (Entry entry : entries) {
-            index++;
-            System.out.println(String.format("  (%d/%d) Processing visualization object: %s", index, entries.size(), entry.getUri()));
+            final Collection<Entry> entries = goodData.getMetadataService().find(project, VisualizationObject.class);
+            int index = 0;
+            for (Entry entry : entries) {
+                index++;
+                System.out.println(String.format("  (%d/%d) Processing visualization object: %s", index, entries.size(), entry.getUri()));
 
-            final VisualizationObject visualizationObject = goodData.getMetadataService().getObjByUri(entry.getUri(), VisualizationObject.class);
+                try {
+                    final VisualizationObject visualizationObject = goodData.getMetadataService().getObjByUri(entry.getUri(), VisualizationObject.class);
 
-            final boolean hasGlobalDateFilterWithStaticPeriod = visualizationObject.getFilters()
-                    .stream()
-                    .anyMatch(filter -> filter instanceof AbsoluteDateFilter);
+                    final boolean hasGlobalDateFilterWithStaticPeriod = visualizationObject.getFilters()
+                            .stream()
+                            .anyMatch(filter -> filter instanceof AbsoluteDateFilter);
 
-            final boolean hasPreviousPeriodEnabled = visualizationObject.getMeasures()
-                    .stream()
-                    .anyMatch(measure -> measure.getDefinition() instanceof PreviousPeriodMeasureDefinition);
+                    if (!hasGlobalDateFilterWithStaticPeriod) {
+                        continue;
+                    }
 
-            final boolean isSlicedByDateNotDay = visualizationObject.getAttributes()
-                    .stream()
-                    .anyMatch(visualizationAttribute -> {
-                        final String displayFormUri = visualizationAttribute.getDisplayForm().getUri();
-                        if (displayFormCache.containsKey(displayFormUri)) {
-                            return displayFormCache.get(displayFormUri);
-                        }
+                    final boolean hasPreviousPeriodEnabled = visualizationObject.getMeasures()
+                            .stream()
+                            .anyMatch(measure -> measure.getDefinition() instanceof PreviousPeriodMeasureDefinition);
 
-                        final AttributeDisplayForm displayForm = goodData.getMetadataService().getObjByUri(displayFormUri, AttributeDisplayForm.class);
-                        final Attribute attribute = goodData.getMetadataService().getObjByUri(displayForm.getFormOf(), Attribute.class);
-                        final String type = attribute.getType();
-                        final boolean result = type != null && !type.equals("GDC.time.date");
-                        displayFormCache.put(displayFormUri, result);
+                    if (!hasPreviousPeriodEnabled) {
+                        continue;
+                    }
 
-                        return result;
-                    });
+                    final boolean isSlicedByDateNotDay = visualizationObject.getAttributes()
+                            .stream()
+                            .anyMatch(visualizationAttribute -> {
+                                final String displayFormUri = visualizationAttribute.getDisplayForm().getUri();
+                                if (displayFormCache.containsKey(displayFormUri)) {
+                                    return displayFormCache.get(displayFormUri);
+                                }
 
-            if (hasGlobalDateFilterWithStaticPeriod && hasPreviousPeriodEnabled && isSlicedByDateNotDay) {
-                System.out.println("    >>> matches search criteria");
-                writer.write(visualizationObject.getUri() + "\n");
+                                final AttributeDisplayForm displayForm = goodData.getMetadataService().getObjByUri(displayFormUri, AttributeDisplayForm.class);
+                                final Attribute attribute = goodData.getMetadataService().getObjByUri(displayForm.getFormOf(), Attribute.class);
+                                final String type = attribute.getType();
+                                final boolean result = type != null && !type.equals("GDC.time.date");
+                                displayFormCache.put(displayFormUri, result);
+
+                                return result;
+                            });
+
+                    if (isSlicedByDateNotDay) {
+                        System.out.println("    >>> matches search criteria");
+                        writer.write(visualizationObject.getUri() + "\n");
+                    }
+                } catch (Exception e) {
+                    writer.write(String.format("Failed to process visualization object %s: %s \n", entry.getUri(), e.getMessage()));
+                    e.printStackTrace();
+                }
             }
+        } catch (Exception e) {
+            writer.write(String.format("Failed to process project %s: %s \n", projectId, e.getMessage()));
+            e.printStackTrace();
         }
     }
 

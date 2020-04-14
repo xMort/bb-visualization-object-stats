@@ -4,7 +4,7 @@ plugins {
 }
 
 group 'com.gooddata'
-version '1.0'
+version '1.1'
 
 sourceCompatibility = 1.8
 
@@ -13,11 +13,12 @@ application {
 }
 
 repositories {
+    mavenLocal()
     mavenCentral()
 }
 
 dependencies {
-    compile group: 'com.gooddata', name: 'gooddata-java', version: '3.0.0-RC.9+api3'
+    compile group: 'com.gooddata', name: 'gooddata-java', version: '3.0.0-RC.9-SNAPSHOT'
     compile group: 'org.slf4j', name: 'slf4j-simple', version: '1.7.30'
     compile group: 'commons-cli', name: 'commons-cli', version: '1.4'
     testCompile group: 'junit', name: 'junit', version: '4.12'
